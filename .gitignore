@@ -1,0 +1,8 @@
+node_modules/
+data/
+.env
+*.log
+# twscrape stores the X session/cookies here — never commit
+accounts.db
+accounts.db-*
+__pycache__/

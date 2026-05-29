@@ -1,0 +1,28 @@
+{
+  "name": "krexa-bill-bot",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Standalone X (Twitter) scraper for the #KrexaBillChallenge: collects @krexa_xyz mentions / campaign tags, OCRs bill screenshots, and publishes a leaderboard for the Krexa site.",
+  "scripts": {
+    "start": "tsx src/run.ts",
+    "watch": "tsx src/run.ts --watch",
+    "once": "tsx src/run.ts --once",
+    "serve": "tsx src/run.ts --serve",
+    "api:once": "tsx src/run-api.ts --once",
+    "api:watch": "tsx src/run-api.ts --watch",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.7",
+    "groq-sdk": "^1.2.0",
+    "patchright": "^1.60.0",
+    "pg": "^8.13.1"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/pg": "^8.11.10",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3"
+  }
+}
