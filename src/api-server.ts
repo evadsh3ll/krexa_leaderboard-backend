@@ -18,6 +18,8 @@ export interface ServerHooks {
   getStatus: () => Record<string, unknown>;
   /** returns {started} — false if a cycle is already in progress */
   triggerRun: () => { started: boolean };
+  /** the ranked leaderboard the frontend renders */
+  getLeaderboard: () => Promise<unknown>;
 }
 
 export function startApiServer(h: ServerHooks): Server {
@@ -31,12 +33,18 @@ export function startApiServer(h: ServerHooks): Server {
     if (url === '/health' || url === '/healthz' || url === '/') {
       return json(200, { ok: true, ...h.getStatus() });
     }
+    if (url === '/leaderboard' && req.method === 'GET') {
+      h.getLeaderboard()
+        .then((data) => json(200, data))
+        .catch((e) => json(500, { ok: false, error: e instanceof Error ? e.message : String(e) }));
+      return;
+    }
     if (url === '/run' && (req.method === 'GET' || req.method === 'POST')) {
       const { started } = h.triggerRun();
       if (!started) return json(409, { ok: false, busy: true, message: 'a cycle is already running' });
       return json(202, { ok: true, started: true, message: 'cycle started — poll /health for results' });
     }
-    return json(404, { ok: false, error: 'not found', endpoints: ['/health', '/run'] });
+    return json(404, { ok: false, error: 'not found', endpoints: ['/health', '/leaderboard', '/run'] });
   });
 
   server.listen(h.port, () => logger.info(`http server on :${h.port} — GET /health, GET|POST /run`));

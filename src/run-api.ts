@@ -22,7 +22,7 @@ import { collectViaTwscrape } from './collect';
 import { startApiServer } from './api-server';
 import type { ApiPost } from './xapi';
 import { ocrImage } from './vision';
-import { syncMaster } from './db';
+import { syncMaster, getLeaderboard, type LeaderboardRow } from './db';
 import { toCsv } from './csv';
 import { getConfig } from './config';
 import { logger } from './logger';
@@ -204,8 +204,15 @@ async function cycle(): Promise<CycleStats> {
 
   if (cfg.DATABASE_URL) {
     try {
-      const n = await syncMaster(master);
-      logger.info(`db: upserted ${n} rows into krexa_posts`);
+      // Only verified bills go to the leaderboard DB. The search query is
+      // #krexabillchallenge, so every post already carries the tag; we additionally
+      // require is_bill=true (an actual bill screenshot was read off the image).
+      const billsMaster: Master = {
+        ...master,
+        posts: Object.fromEntries(Object.entries(master.posts).filter(([, p]) => p.is_bill)),
+      };
+      const n = await syncMaster(billsMaster);
+      logger.info(`db: upserted ${n} bill rows into krexa_posts`);
     } catch (e) {
       logger.error(`db sync failed: ${e instanceof Error ? e.message : String(e)}`);
     }
@@ -253,6 +260,40 @@ async function runGuarded(trigger: string): Promise<void> {
   }
 }
 
+/** Build the ranked leaderboard the frontend renders. Reads the DB if configured,
+ *  otherwise falls back to the local master file (so it works in files-only mode). */
+async function leaderboardData(): Promise<{ updated_at: string; count: number; entries: LeaderboardRow[] }> {
+  const cfg = getConfig();
+  let entries: LeaderboardRow[];
+  if (cfg.DATABASE_URL) {
+    entries = await getLeaderboard();
+  } else {
+    const path = join(cfg.DATA_DIR, `${cfg.CAMPAIGN}_api_master.json`);
+    const master: Master = existsSync(path) ? JSON.parse(readFileSync(path, 'utf8')) : { posts: {} } as Master;
+    entries = Object.values(master.posts)
+      .filter((p) => p.is_bill)
+      .map((p) => ({
+        rank: 0,
+        platform: p.bill_platform,
+        amount: p.bill_amount ? Number(String(p.bill_amount).replace(/[^\d.]/g, '')) || null : null,
+        currency: p.bill_currency,
+        vendor: p.bill_vendor,
+        handle: p.handle,
+        name: p.name,
+        profile_url: p.handle ? `https://x.com/${p.handle}` : '',
+        post_url: p.url,
+        image_url: p.images?.[0] ?? '',
+        posted_at: p.ts || null,
+        likes: p.likes,
+        retweets: p.retweets,
+        views: p.views,
+      }))
+      .sort((a, b) => (b.amount ?? -1) - (a.amount ?? -1))
+      .map((e, i) => ({ ...e, rank: i + 1 }));
+  }
+  return { updated_at: new Date().toISOString(), count: entries.length, entries };
+}
+
 function status(): Record<string, unknown> {
   const cfg = getConfig();
   return {
@@ -285,6 +326,7 @@ async function main() {
       void runGuarded('manual /run'); // fire-and-forget; poll /health for result
       return { started: true };
     },
+    getLeaderboard: leaderboardData,
   });
 
   logger.info(`watch mode — fetching every ${cfg.INTERVAL_MIN} min (browserless / X GraphQL)`);

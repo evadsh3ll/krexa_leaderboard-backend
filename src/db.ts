@@ -163,6 +163,57 @@ export async function syncFromDisk(): Promise<void> {
   }
 }
 
+export interface LeaderboardRow {
+  rank: number;
+  platform: string;
+  amount: number | null;
+  currency: string;
+  vendor: string;
+  handle: string;
+  name: string;
+  profile_url: string;
+  post_url: string;
+  image_url: string;
+  posted_at: string | null;
+  likes: number;
+  retweets: number;
+  views: number;
+}
+
+/**
+ * The leaderboard the frontend renders: only verified bills, ranked by amount
+ * (biggest AI bill first — the campaign is "people spending too much on AI").
+ * Every raw field is returned so the frontend can re-sort however it wants.
+ */
+export async function getLeaderboard(limit = 500): Promise<LeaderboardRow[]> {
+  await ensureSchema();
+  const { rows } = await getPool().query(
+    `SELECT platform, amount, currency, vendor, handle, name, profile_url, post_url, image_url,
+            posted_at, likes, retweets, views
+       FROM krexa_posts
+      WHERE is_bill = true
+      ORDER BY amount DESC NULLS LAST, posted_at DESC
+      LIMIT $1`,
+    [limit],
+  );
+  return rows.map((r, i) => ({
+    rank: i + 1,
+    platform: r.platform ?? '',
+    amount: r.amount === null || r.amount === undefined ? null : Number(r.amount),
+    currency: r.currency ?? '',
+    vendor: r.vendor ?? '',
+    handle: r.handle ?? '',
+    name: r.name ?? '',
+    profile_url: r.profile_url ?? '',
+    post_url: r.post_url ?? '',
+    image_url: r.image_url ?? '',
+    posted_at: r.posted_at ? new Date(r.posted_at).toISOString() : null,
+    likes: r.likes ?? 0,
+    retweets: r.retweets ?? 0,
+    views: r.views ?? 0,
+  }));
+}
+
 export async function closeDb(): Promise<void> {
   if (pool) await pool.end().catch(() => {});
   pool = null;

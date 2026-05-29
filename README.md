@@ -199,6 +199,7 @@ to keep alive, so no xvfb and no persistent disk for a browser profile.
 | Endpoint | Does |
 |---|---|
 | `GET /health` | 200 + status JSON: `running`, `last_run_at`, `last_error`, `interval_min`, `queries`, `db`, and `last` run totals. Ping this to keep Render awake. |
+| `GET /leaderboard` | The ranked leaderboard JSON the **frontend** renders (verified bills only, biggest amount first). Reads the DB if set, else the local master. See `SCHEMA.md`. |
 | `GET` or `POST /run` | Manually trigger a fetch→OCR→DB cycle now. `202` if started, `409` if one's already running. Poll `/health` for the result. |
 
 So: it **auto-fetches every `INTERVAL_MIN` minutes** (default 30), **and** you can
