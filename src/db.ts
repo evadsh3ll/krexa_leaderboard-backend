@@ -21,8 +21,21 @@ function getPool(): pg.Pool {
   const cfg = getConfig();
   if (!cfg.DATABASE_URL) throw new Error('DATABASE_URL not set');
   const local = /localhost|127\.0\.0\.1/.test(cfg.DATABASE_URL);
+  // Strip sslmode from the URL so our explicit ssl option governs. Managed
+  // Postgres (Aiven/Supabase/Neon) presents a private-CA cert; leaving
+  // sslmode=require makes node-postgres verify it against Node's trust store and
+  // fail with "self-signed certificate in certificate chain". We still use SSL —
+  // just without CA verification (rejectUnauthorized:false).
+  let connectionString = cfg.DATABASE_URL;
+  try {
+    const u = new URL(cfg.DATABASE_URL);
+    u.searchParams.delete('sslmode');
+    connectionString = u.toString();
+  } catch {
+    /* not a parseable URL — use as-is */
+  }
   const ssl = process.env.DATABASE_SSL === 'false' || local ? false : { rejectUnauthorized: false };
-  pool = new pg.Pool({ connectionString: cfg.DATABASE_URL, ssl, max: 4 });
+  pool = new pg.Pool({ connectionString, ssl, max: 4 });
   return pool;
 }
 
